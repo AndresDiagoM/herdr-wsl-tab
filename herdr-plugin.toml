@@ -1,6 +1,6 @@
 id = "wsl-tab"
 name = "WSL Tab"
-version = "0.3.0"
+version = "0.3.1"
 min_herdr_version = "0.9.0"
 description = "Open a Herdr tab or split running a WSL distro, with the HERDR_* variables passed through so agents inside WSL can drive Herdr."
 platforms = ["windows"]

@@ -22,8 +22,10 @@ Write-Output ""
 $env:WSLENV = Get-MergedWslEnv $cfg.wslenv
 $argv = @()
 if ($cfg.distro) { $argv += @('-d', $cfg.distro) }
-$probe = 'echo "  HERDR_ENV=$HERDR_ENV"; echo "  HERDR_BIN_PATH=$HERDR_BIN_PATH"; if command -v herdr >/dev/null 2>&1; then echo "  herdr wrapper: $(command -v herdr)"; herdr status 2>&1 | head -5 | sed "s/^/    /"; else echo "  herdr wrapper: NOT FOUND in PATH (see README: ~/.local/bin/herdr)"; fi'
-$argv += @('--', 'bash', '-lc', $probe)
+$probe = 'echo "  HERDR_ENV=$HERDR_ENV"; echo "  HERDR_BIN_PATH=$HERDR_BIN_PATH"; if command -v herdr >/dev/null 2>&1; then echo "  herdr wrapper: $(command -v herdr)"; herdr status 2>&1 | head -5 | sed "s/^/    /"; else echo "  herdr wrapper: NOT FOUND in PATH (see README: ~/.local/bin/herdr)"; fi; f="${XDG_CACHE_HOME:-$HOME/.cache}/herdr-wsl-tab/hook.log"; if [ -s "$f" ]; then echo "  Claude reports Herdr ignored (last 5, see README Troubleshooting):"; tail -n 5 "$f" | sed "s/^/    /"; else echo "  Claude reports Herdr ignored: none"; fi'
+# --exec, not --: with -- wsl.exe hands the line to the distro's shell, which expands the
+# probe's $vars and $(...) before bash -lc ever sees them.
+$argv += @('--exec', 'bash', '-lc', $probe)
 Write-Output "Inside WSL:"
 $r = Invoke-NativeCapture (Get-WslExe) $argv
 ($r.StdOut + $r.StdErr) -replace "`0", '' -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { $_ }

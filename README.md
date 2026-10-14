@@ -161,6 +161,21 @@ rejects it ("agent … is no longer the pane foreground process"), see discussio
 the orchestrator: it can create tabs and drive Codex / opencode panes on Windows through the
 wrapper, which is the setup this plugin was built for.
 
+### Troubleshooting: Claude is running but the pane shows no agent
+
+Herdr drops the hook reports, while still answering them with success, in a pane where it once saw
+a native (Windows) `claude` process exit. Nothing in Herdr clears that while Claude runs inside
+WSL, so the pane stays `unknown` for the rest of its life, and plugins that follow agents (for
+example telegram-agents) report the agent as gone. The usual trigger is a Herdr restart that
+resumes an old pre-0.3.0 hook registration, `claude --resume <id>`, which starts Windows
+`claude` in that pane. That Windows `claude` exits because the session only exists in WSL.
+
+Since 0.3.1 the hook checks the pane after reporting. When Herdr ignores the report, the hook shows a
+Herdr notification and adds a line to `~/.cache/herdr-wsl-tab/hook.log` inside the distro, once
+per pane and session. `wsl-tab.doctor` prints the last lines. To fix it, exit Claude in that pane,
+open a new WSL tab (`wsl-tab.open`), and run `claude --resume <id>` there. The id is in the
+notification.
+
 ## How it works
 
 `[[panes]] shell` runs `powershell.exe -File scripts/shell.ps1`, which reads `config.json`, picks
