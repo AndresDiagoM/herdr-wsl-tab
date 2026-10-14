@@ -15,7 +15,8 @@ plugin is that missing entry.
 |---|---|---|
 | `wsl-tab.open` | action | New tab running WSL, starting in the focused pane's directory |
 | `wsl-tab.open-split` | action | Same, as a split next to the focused pane |
-| `wsl-tab.setup` | action | Installs the `herdr` wrapper and the Claude Code hooks inside the distro (see below) |
+| `wsl-tab.setup` | action | Installs the `herdr` wrapper and the Claude Code hooks inside the distro, and lists the `HERDR_*` names in your user `WSLENV` (see below) |
+| `wsl-tab.restore` | action | Relaunches WSL in panes that Herdr restored as plain shells (also runs automatically at startup) |
 | `wsl-tab.doctor` | action | Prints distros, config, `WSLENV`, and whether `herdr` answers from inside WSL |
 | `shell` | pane entrypoint | The WSL pane itself (`herdr plugin pane open --plugin wsl-tab --entrypoint shell`) |
 
@@ -71,6 +72,7 @@ Optional `config.json` in the plugin config directory (`herdr plugin config-dir 
 | `cwd` | `"context"` | `"context"` = focused pane's directory; `"~"` or `""` = Linux home; any other string (Linux or Windows path) is passed to `--cd` as is |
 | `wslenv` | `[]` | Extra variable names to add to `WSLENV` for this pane (the `HERDR_*` set is always included) |
 | `args` | `[]` | Extra arguments appended to `wsl.exe` (for example `["--", "fish"]`) |
+| `restore` | `"all"` | After a Herdr restart: `"all"` relaunches WSL in the plugin's panes and in any pane saved inside `\\wsl.localhost\...`; `"plugin"` only the plugin's; `"off"` never |
 
 See `config.example.json`.
 
@@ -108,6 +110,25 @@ export PATH="$HOME/.local/bin:$PATH"   # Ubuntu's default ~/.profile already doe
 (The same script is in `wsl/herdr` in this repo.) Then `herdr status` inside the tab reports the Windows server, and a Claude Code / Codex /
 opencode session started there sees `HERDR_PANE_ID` and can use Herdr's agent skill. `wsl-tab.doctor`
 checks all of this and prints what is missing.
+
+## After a Herdr restart
+
+Herdr restores a session as layout + each pane's saved directory, and every pane comes back
+as the default shell. So without help a WSL tab comes back as `pwsh`.
+
+The plugin handles that in two ways, both run by a `[[startup]]` hook after Herdr restores the
+session (and on demand with `herdr plugin action invoke wsl-tab.restore`):
+
+- panes this plugin opened are recorded (`panes.json` in the plugin state dir) and get WSL
+  relaunched in the same distro and directory;
+- with `"restore": "all"` (the default), any other pane whose saved directory is
+  `\\wsl.localhost\<distro>\...`, i.e. one where you had typed `wsl` by hand, is relaunched too.
+
+A pane is only touched when it is an idle shell: no agent, nothing else running. Set
+`"restore": "plugin"` to limit it to the plugin's own panes, or `"off"`.
+
+Claude Code sessions inside a WSL tab (with the hooks below) are resumed by Herdr itself: the hook
+registers a resume command that re-enters the distro and runs `claude --resume <session>`.
 
 ## Making Herdr see Claude Code running inside the WSL tab
 

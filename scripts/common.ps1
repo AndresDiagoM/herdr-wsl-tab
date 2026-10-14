@@ -10,7 +10,7 @@ $script:DefaultWslEnv = @(
 
 function Get-WslTabConfig {
   # config.json lives in the plugin config dir (herdr plugin config-dir wsl-tab).
-  $cfg = [ordered]@{ distro = ''; cwd = 'context'; wslenv = @(); args = @() }
+  $cfg = [ordered]@{ distro = ''; cwd = 'context'; wslenv = @(); args = @(); restore = 'all' }
   $dir = $env:HERDR_PLUGIN_CONFIG_DIR
   if (-not $dir) { return $cfg }
   $path = Join-Path $dir 'config.json'
@@ -22,13 +22,14 @@ function Get-WslTabConfig {
   if ($null -eq $json -or $json -isnot [pscustomobject]) {
     throw "wsl-tab: $path must contain a JSON object"
   }
-  foreach ($k in @('distro', 'cwd')) {
+  foreach ($k in @('distro', 'cwd', 'restore')) {
     $prop = $json.PSObject.Properties[$k]
     if ($prop -and $null -ne $prop.Value) {
       if ($prop.Value -isnot [string]) { throw "wsl-tab: config.$k must be a string" }
       $cfg[$k] = $prop.Value
     }
   }
+  if ($cfg.restore -notin @('all', 'plugin', 'off')) { throw "wsl-tab: config.restore must be 'all', 'plugin' or 'off'" }
   foreach ($k in @('wslenv', 'args')) {
     $prop = $json.PSObject.Properties[$k]
     if ($prop -and $null -ne $prop.Value) {
@@ -81,6 +82,58 @@ function Get-MergedWslEnv([string[]] $extra) {
     $_ -and ($script:DefaultWslEnv -cnotcontains ($_ -split '/', 2)[0])
   })
   return ((($tokens + $script:DefaultWslEnv) | Select-Object -Unique) -join ':')
+}
+
+function Get-WslPaneStatePath {
+  $dir = $env:HERDR_PLUGIN_STATE_DIR
+  if (-not $dir) { return $null }
+  if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+  return (Join-Path $dir 'panes.json')
+}
+
+function Get-WslPaneRecords {
+  # Returns a hashtable pane_id -> @{ tab_id; workspace_id; distro; cd; saved_at }
+  $records = @{}
+  $path = Get-WslPaneStatePath
+  if (-not $path -or -not (Test-Path -LiteralPath $path)) { return $records }
+  try {
+    $raw = [string](Get-Content -LiteralPath $path -Raw -Encoding UTF8)
+    if (-not $raw.Trim()) { return $records }
+    $json = $raw | ConvertFrom-Json
+    foreach ($p in $json.PSObject.Properties) {
+      $v = $p.Value
+      $records[$p.Name] = @{
+        tab_id = [string]$v.tab_id; workspace_id = [string]$v.workspace_id
+        distro = [string]$v.distro; cd = [string]$v.cd; saved_at = [string]$v.saved_at
+      }
+    }
+  } catch { }
+  return $records
+}
+
+function Set-WslPaneRecords([hashtable] $records) {
+  $path = Get-WslPaneStatePath
+  if (-not $path) { return }
+  $obj = [ordered]@{}
+  foreach ($k in ($records.Keys | Sort-Object)) { $obj[$k] = $records[$k] }
+  [IO.File]::WriteAllText($path, (ConvertTo-Json $obj -Depth 4), (New-Object Text.UTF8Encoding($false)))
+}
+
+function Save-WslPaneRecord([string] $PaneId, [string] $TabId, [string] $WorkspaceId, [string] $Distro, [string] $Cd) {
+  if (-not $PaneId) { return }
+  try {
+    $r = Get-WslPaneRecords
+    $r[$PaneId] = @{ tab_id = $TabId; workspace_id = $WorkspaceId; distro = $Distro; cd = $Cd; saved_at = [DateTime]::UtcNow.ToString('o') }
+    Set-WslPaneRecords $r
+  } catch { }
+}
+
+function Remove-WslPaneRecord([string] $PaneId) {
+  if (-not $PaneId) { return }
+  try {
+    $r = Get-WslPaneRecords
+    if ($r.ContainsKey($PaneId)) { $r.Remove($PaneId); Set-WslPaneRecords $r }
+  } catch { }
 }
 
 function Get-WslExe {

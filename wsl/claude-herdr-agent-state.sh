@@ -25,8 +25,15 @@ case "$event" in
     args=(pane report-agent-session "$HERDR_PANE_ID" --source "$src" --agent claude --seq "$seq" --agent-session-id "$sid")
     tp="$(field transcript_path)"; [ -n "$tp" ] && args+=(--agent-session-path "$tp")
     herdr "${args[@]}" >/dev/null 2>&1
+    # Resume command for Herdr's session restore. Herdr runs it on WINDOWS as the pane's process,
+    # so it must re-enter this distro; `bash -lc` gives it the login PATH (where claude lives).
+    cwd="$(field cwd)"; [ -n "$cwd" ] || cwd="$PWD"
+    distro="${WSL_DISTRO_NAME:-}"
+    resume=(wsl.exe)
+    [ -n "$distro" ] && resume+=(-d "$distro")
+    resume+=(--cd "$cwd" -- bash -lc "exec claude --resume $sid")
     herdr pane report-agent "$HERDR_PANE_ID" --source "$src" --agent claude --state idle --seq "$seq" \
-      -- claude --resume "$sid" >/dev/null 2>&1
+      -- "${resume[@]}" >/dev/null 2>&1
     ;;
   working|idle|blocked)
     herdr pane report-agent "$HERDR_PANE_ID" --source "$src" --agent claude --state "$event" --seq "$seq" >/dev/null 2>&1

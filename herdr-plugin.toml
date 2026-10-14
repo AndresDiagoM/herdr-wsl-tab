@@ -1,6 +1,6 @@
 id = "wsl-tab"
 name = "WSL Tab"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.9.0"
 description = "Open a Herdr tab or split running a WSL distro, with the HERDR_* variables passed through so agents inside WSL can drive Herdr."
 platforms = ["windows"]
@@ -13,6 +13,17 @@ id = "shell"
 title = "WSL"
 placement = "tab"
 command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/shell.ps1"]
+
+# After a Herdr restart, put WSL back into the panes that were WSL panes (Herdr restores
+# every pane as the default shell). Also available as the `restore` action.
+[[startup]]
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/restore.ps1", "-Quiet"]
+
+[[actions]]
+id = "restore"
+title = "WSL: restore WSL in panes Herdr brought back as pwsh"
+contexts = ["workspace", "tab", "pane"]
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/restore.ps1"]
 
 # Open a WSL tab in the current workspace (bind this to a key).
 [[actions]]

@@ -26,4 +26,11 @@ if ($cfg.distro) { $argv += @('-d', $cfg.distro) }
 $argv += @('--cd', $cd)
 if ($cfg.args) { $argv += $cfg.args }
 
-exit (Invoke-NativeInherit (Get-WslExe) $argv)
+# Remember this pane so restore.ps1 can bring WSL back after a Herdr restart
+# (Herdr restores panes as the default shell in the saved cwd).
+Save-WslPaneRecord -PaneId $env:HERDR_PANE_ID -TabId $env:HERDR_TAB_ID -WorkspaceId $env:HERDR_WORKSPACE_ID -Distro $cfg.distro -Cd $cd
+
+$rc = Invoke-NativeInherit (Get-WslExe) $argv
+# A clean exit (user typed exit) means there is nothing to restore next time.
+if ($rc -eq 0) { Remove-WslPaneRecord -PaneId $env:HERDR_PANE_ID }
+exit $rc
