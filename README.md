@@ -9,6 +9,8 @@ Herdr has one global `[terminal] default_shell`; there is no per-tab profile lik
 Terminal's "Ubuntu" entry ([#4180](https://github.com/herdrdev/herdr/discussions/4180)). This
 plugin is that missing entry.
 
+![herdr-wsl-tab: prefix+shift+u opens an Ubuntu tab in Herdr](assets/herdr-tab.gif)
+
 ## What you get
 
 | Entry | Kind | What it does |
