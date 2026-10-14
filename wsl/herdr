@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Linux-side wrapper: run the Windows herdr.exe through WSL interop.
+# Install: cp wsl/herdr ~/.local/bin/herdr && chmod +x ~/.local/bin/herdr
+exe=""
+if [ -n "${HERDR_BIN_PATH:-}" ]; then
+  exe=$(wslpath -u "$HERDR_BIN_PATH" 2>/dev/null)
+fi
+if [ -z "$exe" ] || [ ! -x "$exe" ]; then
+  exe=$(ls -d /mnt/c/Users/*/.herdr/packages/standalone/releases/*/herdr.exe 2>/dev/null | sort -V | tail -1)
+fi
+[ -x "$exe" ] || { echo "herdr: herdr.exe not found (HERDR_BIN_PATH unset and nothing under /mnt/c/Users/*/.herdr)" >&2; exit 127; }
+exec "$exe" "$@"

@@ -104,9 +104,35 @@ chmod +x ~/.local/bin/herdr
 export PATH="$HOME/.local/bin:$PATH"   # Ubuntu's default ~/.profile already does this when the dir exists
 ```
 
-Then `herdr status` inside the tab reports the Windows server, and a Claude Code / Codex /
+(The same script is in `wsl/herdr` in this repo.) Then `herdr status` inside the tab reports the Windows server, and a Claude Code / Codex /
 opencode session started there sees `HERDR_PANE_ID` and can use Herdr's agent skill. `wsl-tab.doctor`
 checks all of this and prints what is missing.
+
+## Making Herdr see Claude Code running inside the WSL tab
+
+Herdr identifies agents by the pane's foreground process, and from Windows it only sees the
+launcher, never the Linux `claude` process (herdr discussion #3347). So a Claude Code session
+started in the WSL tab is a plain terminal to Herdr: no `claude` label, no `idle`/`working`
+state in the sidebar.
+
+A set of Claude Code hooks fixes the label and the state. They call `herdr pane report-agent`
+from inside WSL through the wrapper above:
+
+```sh
+cp wsl/claude-herdr-agent-state.sh ~/.claude/hooks/herdr-agent-state.sh
+chmod +x ~/.claude/hooks/herdr-agent-state.sh
+# merge wsl/claude-settings-hooks.json into ~/.claude/settings.json (the "hooks" object)
+```
+
+Verified on Herdr 0.9.4 / Claude Code in Ubuntu: with the hooks the pane shows `agent: claude`
+and goes `idle` → `done` through a prompt, and `herdr agent explain` applies Herdr's own Claude
+screen manifest to it. Without the hooks the same pane stays `agent: None`, `unknown`.
+
+What the hooks do **not** give you: `herdr agent prompt` / `agent wait` on that pane. Herdr
+rejects it ("agent … is no longer the pane foreground process"), see discussion #2935. Use
+`herdr pane send-text` / `pane read` from the outside, or, better, let the Claude inside the tab be
+the orchestrator: it can create tabs and drive Codex / opencode panes on Windows through the
+wrapper, which is the setup this plugin was built for.
 
 ## How it works
 
