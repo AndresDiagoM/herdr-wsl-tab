@@ -1,6 +1,6 @@
 id = "wsl-tab"
 name = "WSL Tab"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.9.0"
 description = "Open a Herdr tab or split running a WSL distro, with the HERDR_* variables passed through so agents inside WSL can drive Herdr."
 platforms = ["windows"]
@@ -27,6 +27,14 @@ id = "open-split"
 title = "WSL: open split"
 contexts = ["workspace", "tab", "pane"]
 command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/open.ps1", "split"]
+
+# Install the Linux-side pieces in the distro: ~/.local/bin/herdr wrapper and the Claude Code
+# hooks that report the session's state to Herdr (idempotent, keeps a settings.json backup).
+[[actions]]
+id = "setup"
+title = "WSL: install herdr wrapper + Claude hooks in the distro"
+contexts = ["workspace", "tab", "pane"]
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/setup.ps1"]
 
 # Print distros, config, WSLENV and whether herdr is reachable from inside WSL.
 [[actions]]

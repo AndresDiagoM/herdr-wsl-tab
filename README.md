@@ -15,6 +15,7 @@ plugin is that missing entry.
 |---|---|---|
 | `wsl-tab.open` | action | New tab running WSL, starting in the focused pane's directory |
 | `wsl-tab.open-split` | action | Same, as a split next to the focused pane |
+| `wsl-tab.setup` | action | Installs the `herdr` wrapper and the Claude Code hooks inside the distro (see below) |
 | `wsl-tab.doctor` | action | Prints distros, config, `WSLENV`, and whether `herdr` answers from inside WSL |
 | `shell` | pane entrypoint | The WSL pane itself (`herdr plugin pane open --plugin wsl-tab --entrypoint shell`) |
 
@@ -116,13 +117,16 @@ started in the WSL tab is a plain terminal to Herdr: no `claude` label, no `idle
 state in the sidebar.
 
 A set of Claude Code hooks fixes the label and the state. They call `herdr pane report-agent`
-from inside WSL through the wrapper above:
+from inside WSL through the wrapper above. One command installs the wrapper, the hook script and
+the `settings.json` entries in the configured distro (idempotent; it backs up `settings.json`):
 
 ```sh
-cp wsl/claude-herdr-agent-state.sh ~/.claude/hooks/herdr-agent-state.sh
-chmod +x ~/.claude/hooks/herdr-agent-state.sh
-# merge wsl/claude-settings-hooks.json into ~/.claude/settings.json (the "hooks" object)
+herdr plugin action invoke wsl-tab.setup
 ```
+
+Or by hand, inside the distro: `bash wsl/setup.sh` from the plugin root, or copy
+`wsl/claude-herdr-agent-state.sh` to `~/.claude/hooks/herdr-agent-state.sh` and merge
+`wsl/claude-settings-hooks.json` into `~/.claude/settings.json`.
 
 Verified on Herdr 0.9.4 / Claude Code in Ubuntu: with the hooks the pane shows `agent: claude`
 and goes `idle` → `done` through a prompt, and `herdr agent explain` applies Herdr's own Claude
