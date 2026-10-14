@@ -48,13 +48,38 @@ function Get-HerdrContext {
   try { return ($env:HERDR_PLUGIN_CONTEXT_JSON | ConvertFrom-Json) } catch { return $null }
 }
 
+function Test-PluginInstallPath([string] $path) {
+  # A pane this plugin opened reports its launcher's directory (the plugin checkout), not
+  # the directory WSL is in, until the shell inside reports one (OSC 9;9, see wsl/setup.sh).
+  if (-not $path) { return $false }
+  $p = $path.TrimEnd('\', '/')
+  $roots = @()
+  if ($env:HERDR_PLUGIN_ROOT) { $roots += $env:HERDR_PLUGIN_ROOT }
+  if ($env:APPDATA) { $roots += (Join-Path $env:APPDATA 'herdr\plugins') }
+  foreach ($root in $roots) {
+    $r = $root.TrimEnd('\', '/')
+    if ($p -ieq $r -or $p.StartsWith($r + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+  }
+  return $false
+}
+
 function Get-ContextCwd {
-  # Herdr 0.9.x context keys: focused_pane_cwd, workspace_cwd.
+  # Herdr 0.9.x context keys: focused_pane_cwd, focused_pane_id, workspace_cwd.
+  # Order: the focused pane's directory; for a WSL pane that never reported one, the
+  # directory this plugin opened it in; then the workspace's directory.
   $ctx = Get-HerdrContext
   if ($null -eq $ctx) { return $null }
-  foreach ($name in @('focused_pane_cwd', 'workspace_cwd', 'cwd')) {
-    if ($ctx.PSObject.Properties[$name] -and $ctx.$name) { return [string]$ctx.$name }
+  $get = { param($name) if ($ctx.PSObject.Properties[$name] -and $ctx.$name) { [string]$ctx.$name } }
+  $paneCwd = & $get 'focused_pane_cwd'
+  if (-not $paneCwd) { $paneCwd = & $get 'cwd' }
+  if ($paneCwd -and -not (Test-PluginInstallPath $paneCwd)) { return $paneCwd }
+  $paneId = & $get 'focused_pane_id'
+  if ($paneId) {
+    $record = (Get-WslPaneRecords)[$paneId]
+    if ($record -and $record.cd -and -not (Test-PluginInstallPath $record.cd)) { return $record.cd }
   }
+  $wsCwd = & $get 'workspace_cwd'
+  if ($wsCwd -and -not (Test-PluginInstallPath $wsCwd)) { return $wsCwd }
   return $null
 }
 

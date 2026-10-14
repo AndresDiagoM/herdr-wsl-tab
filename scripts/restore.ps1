@@ -88,7 +88,13 @@ foreach ($id in ($targets.Keys | Sort-Object)) {
   $shell = Wait-IdleShell $id 30
   if ($shell -eq 'wsl') { Write-Output "  $id : already at a Linux prompt, skipped"; continue }
   if (-not $shell) { Write-Output "  $id : not an idle shell, skipped"; continue }
-  $cd = $t.cd; if (-not $cd) { $cd = '~' }
+  # Prefer the directory the WSL shell last reported (OSC 9;9 from wsl/setup.sh's bashrc
+  # block, saved by Herdr as a \\wsl.localhost\... cwd) over the one the pane started in.
+  $cd = $t.cd
+  $liveCwd = [string]$pane.cwd
+  if ($liveCwd -match '^(\\\\|//)(wsl\.localhost|wsl\$)[\\/]') { $cd = ConvertTo-WslCd $liveCwd }
+  elseif (Test-PluginInstallPath $cd) { $cd = $null }
+  if (-not $cd) { $cd = '~' }
   $q = { param($s) "'" + ($s -replace "'", "''") + "'" }
   $cmd = "`$env:WSLENV=" + (& $q $wslenv) + "; & wsl.exe"
   if ($t.distro) { $cmd += " -d " + (& $q $t.distro) }

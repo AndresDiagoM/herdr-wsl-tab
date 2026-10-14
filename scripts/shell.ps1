@@ -11,7 +11,7 @@ $cd = $null
 switch ($cfg.cwd) {
   'context' {
     $cd = $env:WSL_TAB_CD
-    if (-not $cd) { $cd = Get-ContextCwd }
+    if (-not $cd -or (Test-PluginInstallPath $cd)) { $cd = Get-ContextCwd }
   }
   ''      { $cd = '~' }
   default { $cd = $cfg.cwd }

@@ -17,7 +17,7 @@ plugin is that missing entry.
 |---|---|---|
 | `wsl-tab.open` | action | New tab running WSL, starting in the focused pane's directory |
 | `wsl-tab.open-split` | action | Same, as a split next to the focused pane |
-| `wsl-tab.setup` | action | Installs the `herdr` wrapper and the Claude Code hooks inside the distro, and lists the `HERDR_*` names in your user `WSLENV` (see below) |
+| `wsl-tab.setup` | action | Installs the `herdr` wrapper, the Claude Code hooks and the `~/.bashrc` directory report inside the distro, and lists the `HERDR_*` names in your user `WSLENV` (see below) |
 | `wsl-tab.restore` | action | Relaunches WSL in panes that Herdr restored as plain shells (also runs automatically at startup) |
 | `wsl-tab.doctor` | action | Prints distros, config, `WSLENV`, and whether `herdr` answers from inside WSL |
 | `shell` | pane entrypoint | The WSL pane itself (`herdr plugin pane open --plugin wsl-tab --entrypoint shell`) |
@@ -26,6 +26,13 @@ If the focused pane already lives in WSL (cwd `\\wsl.localhost\<distro>\...`), t
 at that Linux path, opened in the configured (or default) distro; the source distro is not
 selected automatically. Drive paths (`C:\...`) are handed to `wsl.exe --cd`, which maps them to
 WSL's drive mounts (`/mnt/c/...`). Other network shares need a suitable mount on the Linux side.
+
+Herdr only learns a WSL pane's directory if the shell inside reports it. `wsl-tab.setup` adds a
+small block to `~/.bashrc` that does so at every prompt (OSC 9;9, the sequence Herdr's own
+PowerShell integration uses, and only when `HERDR_ENV` is set). After that, new tabs and splits
+follow your `cd`, and so does the directory WSL comes back to after a Herdr restart. Without the
+block, a wsl-tab pane reports the plugin's install folder. The plugin ignores that folder and
+opens where the pane started, or else in the workspace's directory.
 
 ## Install
 

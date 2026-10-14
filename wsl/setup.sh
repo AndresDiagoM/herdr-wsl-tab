@@ -5,6 +5,7 @@
 #   ~/.local/bin/herdr                       wrapper that execs the Windows herdr.exe
 #   ~/.claude/hooks/herdr-agent-state.sh     Claude Code hooks -> herdr pane report-agent
 #   ~/.claude/settings.json                  hooks entries merged in (backup kept beside it)
+#   ~/.bashrc                                block reporting the shell's directory to Herdr
 set -u
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ok() { echo "  [ok] $*"; }
@@ -29,7 +30,26 @@ fi
 strip_cr "$here/claude-herdr-agent-state.sh" "$HOME/.claude/hooks/herdr-agent-state.sh" \
   && chmod +x "$HOME/.claude/hooks/herdr-agent-state.sh" && ok "~/.claude/hooks/herdr-agent-state.sh"
 
-# 3. settings.json merge
+# 3. ~/.bashrc block that reports the shell's directory to Herdr (replaced in place on update)
+bashrc="$HOME/.bashrc"
+block="$(sed 's/\r$//' "$here/bashrc-cwd.sh")"
+if [ -f "$bashrc" ] && grep -q '^# >>> herdr-wsl-tab cwd >>>' "$bashrc"; then
+  current="$(sed -n '/^# >>> herdr-wsl-tab cwd >>>/,/^# <<< herdr-wsl-tab cwd <<</p' "$bashrc")"
+  if [ "$current" = "$block" ]; then
+    skip "~/.bashrc already reports the directory to Herdr"
+  else
+    tmp="$(mktemp)"
+    awk -v blockfile="$here/bashrc-cwd.sh" '
+      /^# >>> herdr-wsl-tab cwd >>>/ { while ((getline l < blockfile) > 0) { sub(/\r$/, "", l); print l }; skipping = 1; next }
+      /^# <<< herdr-wsl-tab cwd <<</ { skipping = 0; next }
+      !skipping { print }' "$bashrc" > "$tmp" && cat "$tmp" > "$bashrc" && rm -f "$tmp" \
+      && ok "~/.bashrc: herdr directory block updated"
+  fi
+else
+  printf '\n%s\n' "$block" >> "$bashrc" && ok "~/.bashrc: reports the shell's directory to Herdr (new shells)"
+fi
+
+# 4. settings.json merge
 if ! command -v python3 >/dev/null 2>&1; then
   echo "  [!!] python3 not found; merge wsl/claude-settings-hooks.json into ~/.claude/settings.json by hand"
   exit 0
@@ -63,10 +83,10 @@ else:
     print("  [--] ~/.claude/settings.json already has the herdr hooks")
 PY
 
-# 4. check
+# 5. check
 if command -v herdr >/dev/null 2>&1 && [ "${HERDR_ENV:-}" = "1" ]; then
   if herdr status >/dev/null 2>&1; then ok "herdr status answers from inside WSL"; else echo "  [!!] herdr status failed from inside WSL"; fi
 else
   skip "herdr reachability not checked (run this from a wsl-tab pane to check)"
 fi
-echo "Done. New Claude Code sessions in a wsl-tab pane will report their state to Herdr."
+echo "Done. New Claude Code sessions in a wsl-tab pane will report their state to Herdr, and new WSL shells their directory."
