@@ -1,0 +1,36 @@
+id = "wsl-tab"
+name = "WSL Tab"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Open a Herdr tab or split running a WSL distro, with the HERDR_* variables passed through so agents inside WSL can drive Herdr."
+platforms = ["windows"]
+
+# Pane entrypoint: the pane's process is wsl.exe (through a tiny PowerShell launcher
+# that sets WSLENV for this process only). Placement can be overridden by
+# `herdr plugin pane open --placement split|tab|zoomed`.
+[[panes]]
+id = "shell"
+title = "WSL"
+placement = "tab"
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/shell.ps1"]
+
+# Open a WSL tab in the current workspace (bind this to a key).
+[[actions]]
+id = "open"
+title = "WSL: open tab"
+contexts = ["workspace", "tab", "pane"]
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/open.ps1", "tab"]
+
+# Open a WSL split next to the current pane.
+[[actions]]
+id = "open-split"
+title = "WSL: open split"
+contexts = ["workspace", "tab", "pane"]
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/open.ps1", "split"]
+
+# Print distros, config, WSLENV and whether herdr is reachable from inside WSL.
+[[actions]]
+id = "doctor"
+title = "WSL: doctor"
+contexts = ["workspace", "tab", "pane"]
+command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/doctor.ps1"]

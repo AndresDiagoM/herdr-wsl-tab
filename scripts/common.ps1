@@ -1,0 +1,126 @@
+# Shared helpers for the wsl-tab plugin. Windows PowerShell 5.1 compatible.
+Set-StrictMode -Version 2.0
+$ErrorActionPreference = 'Stop'
+
+# HERDR_* variables that a session inside WSL needs to reach the Windows herdr server.
+$script:DefaultWslEnv = @(
+  'HERDR_ENV', 'HERDR_SOCKET_PATH', 'HERDR_BIN_PATH',
+  'HERDR_WORKSPACE_ID', 'HERDR_TAB_ID', 'HERDR_PANE_ID'
+)
+
+function Get-WslTabConfig {
+  # config.json lives in the plugin config dir (herdr plugin config-dir wsl-tab).
+  $cfg = [ordered]@{ distro = ''; cwd = 'context'; wslenv = @(); args = @() }
+  $dir = $env:HERDR_PLUGIN_CONFIG_DIR
+  if (-not $dir) { return $cfg }
+  $path = Join-Path $dir 'config.json'
+  if (-not (Test-Path -LiteralPath $path)) { return $cfg }
+
+  $raw = [string](Get-Content -LiteralPath $path -Raw -Encoding UTF8)
+  if (-not $raw.Trim()) { return $cfg }
+  $json = $raw | ConvertFrom-Json
+  if ($null -eq $json -or $json -isnot [pscustomobject]) {
+    throw "wsl-tab: $path must contain a JSON object"
+  }
+  foreach ($k in @('distro', 'cwd')) {
+    $prop = $json.PSObject.Properties[$k]
+    if ($prop -and $null -ne $prop.Value) {
+      if ($prop.Value -isnot [string]) { throw "wsl-tab: config.$k must be a string" }
+      $cfg[$k] = $prop.Value
+    }
+  }
+  foreach ($k in @('wslenv', 'args')) {
+    $prop = $json.PSObject.Properties[$k]
+    if ($prop -and $null -ne $prop.Value) {
+      if ($prop.Value -isnot [array]) { throw "wsl-tab: config.$k must be an array of strings" }
+      foreach ($v in $prop.Value) {
+        if ($null -eq $v -or $v -isnot [string]) { throw "wsl-tab: config.$k must be an array of strings" }
+      }
+      $cfg[$k] = @($prop.Value)
+    }
+  }
+  return $cfg
+}
+
+function Get-HerdrContext {
+  if (-not $env:HERDR_PLUGIN_CONTEXT_JSON) { return $null }
+  try { return ($env:HERDR_PLUGIN_CONTEXT_JSON | ConvertFrom-Json) } catch { return $null }
+}
+
+function Get-ContextCwd {
+  # Herdr 0.9.x context keys: focused_pane_cwd, workspace_cwd.
+  $ctx = Get-HerdrContext
+  if ($null -eq $ctx) { return $null }
+  foreach ($name in @('focused_pane_cwd', 'workspace_cwd', 'cwd')) {
+    if ($ctx.PSObject.Properties[$name] -and $ctx.$name) { return [string]$ctx.$name }
+  }
+  return $null
+}
+
+function ConvertTo-WslCd([string] $path) {
+  # wsl.exe --cd accepts Windows drive paths, but rejects \\wsl.localhost\<distro>\... UNC
+  # paths (what a pane that already lives in WSL reports). Turn those into the Linux path.
+  # The distro part is dropped: the path is opened in the configured (or default) distro.
+  if (-not $path) { return $path }
+  $m = [regex]::Match($path, '^(\\\\|//|\\|/)(wsl\.localhost|wsl\$)[\\/][^\\/]+([\\/].*)?$', 'IgnoreCase')
+  if ($m.Success) {
+    $rest = $m.Groups[3].Value
+    if (-not $rest) { return '/' }
+    return ($rest -replace '\\', '/')
+  }
+  return $path
+}
+
+function Get-MergedWslEnv([string[]] $extra) {
+  # Keep whatever WSLENV already holds (e.g. WT_SESSION), add the HERDR_* names once each,
+  # as bare entries (Windows value passed as is), dropping any flagged variant (NAME/p, NAME/w).
+  $tokens = @()
+  if ($env:WSLENV) { $tokens += $env:WSLENV -split ':' }
+  if ($extra) { $tokens += $extra }
+  $tokens = @($tokens | Where-Object {
+    $_ -and ($script:DefaultWslEnv -cnotcontains ($_ -split '/', 2)[0])
+  })
+  return ((($tokens + $script:DefaultWslEnv) | Select-Object -Unique) -join ':')
+}
+
+function Get-WslExe {
+  $sys = Join-Path $env:SystemRoot 'System32\wsl.exe'
+  if (Test-Path -LiteralPath $sys) { return $sys }
+  return 'wsl.exe'
+}
+
+function ConvertTo-NativeArgument([string] $value) {
+  # Quote one argument per the MSVCRT rules so it survives as exactly one argv entry.
+  # PowerShell 5.1's own native binder mangles trailing backslashes and embedded quotes.
+  # Only quote when needed: wsl.exe does not recognise a quoted flag such as "-l".
+  if ($value -match '^[^\s"]+$') { return $value }
+  $escaped = ($value -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1'
+  return '"' + $escaped + '"'
+}
+
+function New-NativeStartInfo([string] $exe, [string[]] $arguments) {
+  $si = New-Object System.Diagnostics.ProcessStartInfo
+  $si.FileName = $exe
+  $si.UseShellExecute = $false
+  $si.Arguments = (@($arguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' ')
+  return $si
+}
+
+function Invoke-NativeInherit([string] $exe, [string[]] $arguments) {
+  # Run with the console inherited (interactive child), return its exit code.
+  $p = [System.Diagnostics.Process]::Start((New-NativeStartInfo $exe $arguments))
+  $p.WaitForExit()
+  return $p.ExitCode
+}
+
+function Invoke-NativeCapture([string] $exe, [string[]] $arguments) {
+  # Run with stdout/stderr captured separately; returns @{ ExitCode; StdOut; StdErr }.
+  $si = New-NativeStartInfo $exe $arguments
+  $si.RedirectStandardOutput = $true
+  $si.RedirectStandardError = $true
+  $p = [System.Diagnostics.Process]::Start($si)
+  $so = $p.StandardOutput.ReadToEndAsync()
+  $se = $p.StandardError.ReadToEndAsync()
+  $p.WaitForExit()
+  return @{ ExitCode = $p.ExitCode; StdOut = $so.Result; StdErr = $se.Result }
+}
