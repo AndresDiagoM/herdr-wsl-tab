@@ -5,8 +5,23 @@ $ErrorActionPreference = 'Stop'
 # HERDR_* variables that a session inside WSL needs to reach the Windows herdr server.
 $script:DefaultWslEnv = @(
   'HERDR_ENV', 'HERDR_SOCKET_PATH', 'HERDR_BIN_PATH',
-  'HERDR_WORKSPACE_ID', 'HERDR_TAB_ID', 'HERDR_PANE_ID'
+  'HERDR_WORKSPACE_ID', 'HERDR_TAB_ID', 'HERDR_PANE_ID',
+  # Metrics (README "Metrics"): open.ps1 stamps the start of an open, the shell reports the delay.
+  'HERDR_WSLTAB_T0', 'HERDR_WSLTAB_PLACEMENT', 'HERDR_WSLTAB_METRICS'
 )
+
+function Write-WslTabMetric([string] $Event, [System.Collections.IDictionary] $Fields) {
+  # One JSONL line in %LOCALAPPDATA%\herdr-wsl-tab\metrics.jsonl. Counters only, no paths or
+  # session content. Off with HERDR_WSLTAB_METRICS=0. Never throws: a metric must not fail the caller.
+  try {
+    if ($env:HERDR_WSLTAB_METRICS -eq '0' -or -not $env:LOCALAPPDATA) { return }
+    $dir = Join-Path $env:LOCALAPPDATA 'herdr-wsl-tab'
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $line = [ordered]@{ ts = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'); event = $Event }
+    foreach ($k in $Fields.Keys) { $line[$k] = $Fields[$k] }
+    [IO.File]::AppendAllText((Join-Path $dir 'metrics.jsonl'), (ConvertTo-Json $line -Compress) + "`n", (New-Object Text.UTF8Encoding($false)))
+  } catch { }
+}
 
 function Get-WslTabConfig {
   # config.json lives in the plugin config dir (herdr plugin config-dir wsl-tab).

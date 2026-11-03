@@ -15,6 +15,17 @@ command -v herdr >/dev/null 2>&1 || exit 0
 input="$(cat 2>/dev/null)"
 seq="$(date +%s%3N)"
 src="hooks:claude-wsl"
+report_ok=null  # set by verify(): true/false, or null when the report was not checked
+
+# Metrics (README "Metrics"): one JSONL line per report, counters only. Off with
+# HERDR_WSLTAB_METRICS=0. A failing write never fails the hook.
+metric() {
+  [ "${HERDR_WSLTAB_METRICS:-1}" = 0 ] && return 0
+  local dir="${XDG_CACHE_HOME:-$HOME/.cache}/herdr-wsl-tab"
+  mkdir -p "$dir" 2>/dev/null && printf '{"ts":"%s","event":"%s"%s}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${2:-}" >> "$dir/metrics.jsonl" 2>/dev/null
+  return 0
+}
 
 field() { printf '%s' "$input" | python3 -c 'import json,sys; d=json.load(sys.stdin); v=d.get(sys.argv[1]); print(v if isinstance(v,str) else "")' "$1" 2>/dev/null; }
 
@@ -31,7 +42,8 @@ verify() {
   sid="$(field session_id)"
   log_dir="${XDG_CACHE_HOME:-$HOME/.cache}/herdr-wsl-tab"
   key="$log_dir/ignored-$(printf '%s' "$HERDR_PANE_ID-$sid" | tr -c 'A-Za-z0-9_-' '_')"
-  if [ "$agent" = claude ]; then rm -f "$key" 2>/dev/null; return 0; fi
+  if [ "$agent" = claude ]; then report_ok=true; rm -f "$key" 2>/dev/null; return 0; fi
+  report_ok=false
   [ -e "$key" ] && return 0
   mkdir -p "$log_dir" 2>/dev/null && : > "$key"
   printf '%s pane=%s session=%s event=%s: herdr ignored the claude report; open Claude in a new wsl-tab pane (claude --resume %s)\n' \
@@ -64,5 +76,10 @@ case "$event" in
     # PostToolUse fires `working` after every tool call; checking on the other events is enough.
     [ "$event" = working ] || verify
     ;;
+esac
+# ok is null for `working` (not checked, see above) and when herdr could not be queried.
+case "$event" in session|working|idle|blocked)
+  pane="${HERDR_PANE_ID//[^A-Za-z0-9:_-]/_}"; distro="${WSL_DISTRO_NAME:-}"; distro="${distro//[^A-Za-z0-9._-]/_}"
+  metric report ",\"kind\":\"$event\",\"pane\":\"$pane\",\"distro\":\"$distro\",\"ok\":$report_ok" ;;
 esac
 exit 0

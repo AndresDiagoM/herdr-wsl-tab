@@ -76,7 +76,11 @@ if ($mode -eq 'all') {
 }
 Set-WslPaneRecords $records
 
-if ($targets.Count -eq 0) { if (-not $Quiet) { Write-Output "wsl-tab restore: nothing to restore" }; exit 0 }
+if ($targets.Count -eq 0) {
+  Write-WslTabMetric 'restore' ([ordered]@{ relaunched = 0; scanned = 0 })
+  if (-not $Quiet) { Write-Output "wsl-tab restore: nothing to restore" }
+  exit 0
+}
 Write-Output "wsl-tab restore: $($targets.Count) pane(s) to check"
 
 $wslenv = Get-MergedWslEnv $cfg.wslenv
@@ -116,4 +120,5 @@ foreach ($id in ($targets.Keys | Sort-Object)) {
   else { Write-Output "  $id : typed the command, but no Linux prompt seen yet" }
 }
 Write-Output "wsl-tab restore: $done restored"
+Write-WslTabMetric 'restore' ([ordered]@{ relaunched = $done; scanned = $targets.Count })
 exit 0

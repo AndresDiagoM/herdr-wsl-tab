@@ -20,6 +20,7 @@ plugin is that missing entry.
 | `wsl-tab.setup` | action | Installs the `herdr` wrapper, the Claude Code hooks and the `~/.bashrc` directory report inside the distro, and lists the `HERDR_*` names in your user `WSLENV` (see below) |
 | `wsl-tab.restore` | action | Relaunches WSL in panes that Herdr restored as plain shells (also runs automatically at startup) |
 | `wsl-tab.doctor` | action | Prints distros, config, `WSLENV`, and whether `herdr` answers from inside WSL |
+| `wsl-tab.stats` | action | Prints the local metrics summary (see [Metrics](#metrics)) |
 | `shell` | pane entrypoint | The WSL pane itself (`herdr plugin pane open --plugin wsl-tab --entrypoint shell`) |
 
 If the focused pane already lives in WSL (cwd `\\wsl.localhost\<distro>\...`), the new tab starts
@@ -182,6 +183,21 @@ Herdr notification and adds a line to `~/.cache/herdr-wsl-tab/hook.log` inside t
 per pane and session. `wsl-tab.doctor` prints the last lines. To fix it, exit Claude in that pane,
 open a new WSL tab (`wsl-tab.open`), and run `claude --resume <id>` there. The id is in the
 notification.
+
+## Metrics
+
+The plugin keeps a few local counters so you can see whether it works for you: how often Herdr
+ignores a Claude hook report, how long a new tab takes to reach its first prompt, how many panes
+a restart relaunches, and whether the directory reports (OSC 9;9) reach Herdr. Each line is JSON,
+`{"ts":...,"event":...}`, with counters only: no paths, prompts or session content (pane ids and
+the distro name are the only identifiers). Nothing is sent anywhere.
+
+- inside the distro: `~/.cache/herdr-wsl-tab/metrics.jsonl` (hook reports, open latency, cwd checks)
+- on Windows: `%LOCALAPPDATA%\herdr-wsl-tab\metrics.jsonl` (restores)
+
+`herdr plugin action invoke wsl-tab.stats` prints a summary of both. The directory check queries
+Herdr once per 25 prompts, in the background. Set `HERDR_WSLTAB_METRICS=0` (Windows environment, or
+inside the distro) and nothing is written; every write site checks it.
 
 ## How it works
 

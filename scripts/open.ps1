@@ -14,6 +14,13 @@ if ($Placement -eq 'split' -and $env:HERDR_PANE_ID) { $argv += @('--target-pane'
 $cwd = Get-ContextCwd
 if ($cwd) { $argv += @('--env', "WSL_TAB_CD=$cwd") }
 
+# Metrics: stamp the start (Unix ms) and placement; the bashrc block in the pane reports the
+# time to its first prompt. Both names are in WSLENV (common.ps1). Skipped with HERDR_WSLTAB_METRICS=0.
+if ($env:HERDR_WSLTAB_METRICS -ne '0') {
+  $t0 = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+  $argv += @('--env', "HERDR_WSLTAB_T0=$t0", '--env', "HERDR_WSLTAB_PLACEMENT=$Placement")
+}
+
 $r = Invoke-NativeCapture $herdr $argv
 if ($r.StdErr) { [Console]::Error.Write($r.StdErr) }
 if ($r.StdOut) { Write-Output $r.StdOut.TrimEnd() }
