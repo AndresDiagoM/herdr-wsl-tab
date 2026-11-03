@@ -73,7 +73,7 @@ if ($all.Count -eq 0) { Write-Output "  no metrics yet (or HERDR_WSLTAB_METRICS=
 
 # ---- Claude hook reports ----------------------------------------------------------------
 # ok=false is "Herdr shows no agent after the report" (issue #4755); ok=null = not checked.
-$reports = Get-Events 'report'
+$reports = @(Get-Events 'report')
 Write-Output ""
 Write-Output "Claude hook reports ($($reports.Count))"
 $fmt = '  {0,-14} {1,8} {2,8} {3,8} {4,9}'
@@ -106,7 +106,7 @@ foreach ($dim in @(@('distro', 'distro'), @('pane', 'pane'))) {
 }
 
 # ---- open latency ------------------------------------------------------------------------
-$opens = Get-Events 'open'
+$opens = @(Get-Events 'open')
 Write-Output ""
 Write-Output "Open latency (action start to first prompt)"
 $ms = @($opens | ForEach-Object { Get-Field $_ 'ms' } | Where-Object { $null -ne $_ -and $_ -ge 0 } | ForEach-Object { [double]$_ } | Sort-Object)
@@ -122,7 +122,7 @@ else {
 if ($skew -gt 0) { Write-Output "  $skew open line(s) with a negative ms (clock difference between Windows and WSL), left out" }
 
 # ---- restore -----------------------------------------------------------------------------
-$restores = Get-Events 'restore'
+$restores = @(Get-Events 'restore')
 Write-Output ""
 Write-Output "Restore after a Herdr restart"
 $scanned = 0; $relaunched = 0
@@ -130,7 +130,7 @@ foreach ($o in $restores) { $scanned += [int](Get-Field $o 'scanned'); $relaunch
 Write-Output "  runs $($restores.Count)   panes checked $scanned   relaunched $relaunched"
 
 # ---- cwd delivery ------------------------------------------------------------------------
-$cwds = Get-Events 'cwd'
+$cwds = @(Get-Events 'cwd')
 Write-Output ""
 Write-Output "cwd report (OSC 9;9), sampled on 1 send in 25"
 $yes = @($cwds | Where-Object { (Get-Field $_ 'match') -eq $true }).Count
